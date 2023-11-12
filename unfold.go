@@ -31,8 +31,8 @@ func unfold_recursively(founded_queue *[]string, resolved_queue *[]string, found
 	// pop
 	path := (*founded_queue)[0]
 	*founded_queue = (*founded_queue)[1:]
-	// construct HppFile
-	hpp := NewHppFile(path)
+	// construct hppFile
+	hpp := newHppFile(path)
 	// trace dependencies
 	dependencies, err := hpp.TraceDependencies()
 	if err != nil {

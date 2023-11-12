@@ -10,18 +10,18 @@ import (
 )
 
 // filepath structure
-type HppFile struct {
+type hppFile struct {
 	path         string
 	dependencies []string
 }
 
 // constructor
-func NewHppFile(path string) *HppFile {
-	return &HppFile{path: path}
+func newHppFile(path string) *hppFile {
+	return &hppFile{path: path}
 }
 
 // get depe
-func (hpp *HppFile) TraceDependencies() ([]string, error) {
+func (hpp *hppFile) TraceDependencies() ([]string, error) {
 	// open file
 	file, err := os.Open(hpp.path)
 	if err != nil {
