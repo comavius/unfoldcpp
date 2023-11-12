@@ -24,6 +24,11 @@ func Unfold(path string) (string, error) {
 		}
 		single_file += string(data) + "\n"
 	}
+	// insert include guard
+	single_file, err = insertIncludeGuard(single_file)
+	if err != nil {
+		return "", err
+	}
 	return single_file, nil
 }
 
