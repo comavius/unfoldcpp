@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func insertIncludeGuard(single_file string) (string, error) {
+func deleteIncludes(single_file string) (string, error) {
 	guarded_single_file := ""
 	r, err := regexp.Compile(`#include[\s]+\"(.*)\"\s*`)
 	if err != nil {
@@ -16,11 +16,7 @@ func insertIncludeGuard(single_file string) (string, error) {
 	scanner := bufio.NewScanner(strings.NewReader(single_file))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if r.MatchString(line) {
-			guarded_single_file += "#ifndef UNFOLDED\n"
-			guarded_single_file += line + "\n"
-			guarded_single_file += "#endif //UNFOLDED\n"
-		} else {
+		if !r.MatchString(line) {
 			guarded_single_file += line + "\n"
 		}
 	}
