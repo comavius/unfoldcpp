@@ -1,64 +1,94 @@
 package unfoldcpp
 
 import (
+	"bufio"
+	"errors"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 func Unfold(path string) (string, error) {
 	// trace dependencies recursively
-	founded_queue := make([]string, 0)
-	founded_list := make([]string, 0)
-	resolved_queue := make([]string, 0)
-	founded_queue = append(founded_queue, path)
-	founded_list = append(founded_list, path)
-	err := unfold_recursively(&founded_queue, &resolved_queue, &founded_list)
+	current_dependencies := make([]string, 0)
+	current_dependencies = append(current_dependencies, path)
+	current_code := "#define UNFOLDED\n"
+	err := unfold_recursively(&current_dependencies, &current_code)
 	if err != nil {
 		return "", err
 	}
-	// build single-file
-	single_file := "#define UNFOLDED\n"
-	for _, path := range resolved_queue {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		single_file += string(data) + "\n"
-	}
-	// insert include guard
-	single_file, err = deleteIncludes(single_file)
-	if err != nil {
-		return "", err
-	}
-	return single_file, nil
+	return current_code, nil
 }
 
-func unfold_recursively(founded_queue *[]string, resolved_queue *[]string, founded_list *[]string) error {
-	// pop
-	path := (*founded_queue)[0]
-	*founded_queue = (*founded_queue)[1:]
-	// construct hppFile
-	hpp := newHppFile(path)
-	// trace dependencies
-	dependencies, err := hpp.TraceDependencies()
+func unfold_recursively(current_dependencies *[]string, current_code *string) error {
+	// open file
+	path := (*current_dependencies)[len(*current_dependencies)-1]
+	file, err := os.Open(path)
 	if err != nil {
 		return err
 	}
-	// add dependencies to founded_queue if not already in founded_list
-	for _, dependency := range dependencies {
-		founded_formerly := false
-		for _, founded_path := range *founded_list {
-			if founded_path == dependency {
-				founded_formerly = true
-				break
+	defer file.Close()
+	// setup regex
+	r, err := regexp.Compile(`^( |\t)*#include[\s]+\"(.*)\"[\s]*$*`)
+	if err != nil {
+		return err
+	}
+	// read lines to check for #include
+	// if #include found, add to dependencies and call unfold_recursively
+	// if #include not found, add to code
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if r.MatchString(scanner.Text()) {
+			line := scanner.Text()
+			start_index := strings.Index(line, "\"")
+			end_index, err := findNextQuote(line, start_index+1)
+			if err != nil {
+				return err
 			}
-		}
-		if !founded_formerly {
-			*founded_queue = append(*founded_queue, dependency)
-			*founded_list = append(*founded_list, dependency)
-			unfold_recursively(founded_queue, resolved_queue, founded_list)
+			relative_path := line[start_index+1 : end_index]
+			absolute_path, err := filepath.Abs(filepath.Dir(path) + "/" + relative_path)
+			if err != nil {
+				return err
+			}
+			// check if already in dependencies
+			already_in_dependencies := false
+			for _, dependency := range *current_dependencies {
+				if dependency == absolute_path {
+					already_in_dependencies = true
+					break
+				}
+			}
+			if !already_in_dependencies {
+				*current_dependencies = append(*current_dependencies, absolute_path)
+				err = unfold_recursively(current_dependencies, current_code)
+				if err != nil {
+					return err
+				}
+			} else {
+				// call cyclic dependency error
+				return errors.New("Cyclic dependency detected")
+			}
+		} else {
+			*current_code += scanner.Text() + "\n"
 		}
 	}
-	// add path to resolved_queue
-	*resolved_queue = append(*resolved_queue, path)
+	// delete here from dependencies
+	*current_dependencies = (*current_dependencies)[:len(*current_dependencies)-1]
 	return nil
+}
+
+func findNextQuote(s string, startIndex int) (int, error) {
+	if startIndex < 0 || startIndex >= len(s) {
+		return -1, errors.New("startIndex out of range")
+	}
+
+	for i := startIndex; i < len(s); i++ {
+		if s[i] == '"' {
+			if i == 0 || s[i-1] != '\\' {
+				return i, nil
+			}
+		}
+	}
+	return -1, errors.New("no unescaped quote found")
 }
