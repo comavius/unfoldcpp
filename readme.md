@@ -30,3 +30,7 @@ func main() {
 	}
 }
 ```
+
+## chenge logs
+- 2023-11-30
+	Fixed bugs on conditional branch in C++ preprocessing.
